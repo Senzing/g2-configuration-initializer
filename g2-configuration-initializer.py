@@ -197,26 +197,6 @@ def get_exception():
 # -----------------------------------------------------------------------------
 
 
-def get_g2_database_url_specific(generic_database_url):
-    result = ""
-
-    parsed_database_url = parse_database_url(generic_database_url)
-    scheme = parsed_database_url.get('scheme')
-
-    if scheme in ['mysql']:
-        result = "{scheme}://{username}:{password}@{hostname}:{port}/?schema={schema}".format(**parsed_database_url)
-    elif scheme in ['postgresql']:
-        result = "{scheme}://{username}:{password}@{hostname}:{port}:{schema}/".format(**parsed_database_url)
-    elif scheme in ['db2']:
-        result = "{scheme}://{username}:{password}@{schema}".format(**parsed_database_url)
-    elif scheme in ['sqlite3']:
-        result = "{scheme}://{netloc}{path}".format(**parsed_database_url)
-    else:
-        logging.error(message_error(518, scheme, generic_database_url))
-
-    return result
-
-
 def get_configuration(args):
     ''' Order of precedence: CLI, OS environment variables, INI file, default. '''
     result = {}
@@ -470,6 +450,26 @@ def parse_database_url(original_senzing_database_url):
         logging.warning(message_warning(423, original_senzing_database_url, test_senzing_database_url))
 
     # Return result.
+
+    return result
+
+
+def get_g2_database_url_specific(generic_database_url):
+    result = ""
+
+    parsed_database_url = parse_database_url(generic_database_url)
+    scheme = parsed_database_url.get('scheme')
+
+    if scheme in ['mysql']:
+        result = "{scheme}://{username}:{password}@{hostname}:{port}/?schema={schema}".format(**parsed_database_url)
+    elif scheme in ['postgresql']:
+        result = "{scheme}://{username}:{password}@{hostname}:{port}:{schema}/".format(**parsed_database_url)
+    elif scheme in ['db2']:
+        result = "{scheme}://{username}:{password}@{schema}".format(**parsed_database_url)
+    elif scheme in ['sqlite3']:
+        result = "{scheme}://{netloc}{path}".format(**parsed_database_url)
+    else:
+        logging.error(message_error(518, scheme, generic_database_url))
 
     return result
 
