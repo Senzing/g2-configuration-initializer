@@ -1,20 +1,7 @@
 #! /usr/bin/env python3
 
 # -----------------------------------------------------------------------------
-# python-template.py Example python skeleton.
-# Can be used as a boiler-plate to build new python scripts.
-# This skeleton implements the following features:
-#   1) "command subcommand" command line.
-#   2) A structured command line parser and "-help"
-#   3) Configuration via:
-#      3.1) Command line options
-#      3.2) Environment variables
-#      3.3) Configuration file
-#      3.4) Default
-#   4) Messages dictionary
-#   5) Logging and Log Level support.
-#   6) Entry / Exit log messages.
-#   7) Docker support.
+# g2-configuration-initializer.py
 # -----------------------------------------------------------------------------
 
 from glob import glob
@@ -41,7 +28,7 @@ __version__ = "1.0.0"
 __date__ = '2019-07-16'
 __updated__ = '2019-07-16'
 
-SENZING_PRODUCT_ID = "5xxx"  # See https://github.com/Senzing/knowledge-base/blob/master/lists/senzing-product-ids.md
+SENZING_PRODUCT_ID = "5005"  # See https://github.com/Senzing/knowledge-base/blob/master/lists/senzing-product-ids.md
 log_format = '%(asctime)s %(message)s'
 
 # Working with bytes.
@@ -150,6 +137,11 @@ message_dictionary = {
     "598": "Bad SENZING_SUBCOMMAND: {0}.",
     "599": "No processing done.",
     "700": "senzing-" + SENZING_PRODUCT_ID + "{0:04d}E",
+    "710": "g2_configuration_manager.getDefaultConfigID({1}) TranslateG2ModuleException: {0}",
+    "711": "g2_configuration_manager.getDefaultConfigID({1}) G2ModuleNotInitialized: {0}",
+    "712": "g2_configuration_manager.getDefaultConfigID({1}) Exception: {0}",
+    "713": "g2_configuration_manager.getDefaultConfigID({0}) exception",
+    "714": "g2_configuration_manager.getDefaultConfigID({1}) Bad return code: {0}",
     "799": "Program terminated with error.",
     "900": "senzing-" + SENZING_PRODUCT_ID + "{0:04d}D",
     "999": "{0}",
@@ -572,7 +564,7 @@ def do_initialize(args):
     except:
         logging.error(message_error(713, default_config_id.decode()))
     if return_code != 0:
-        exit_error(714, default_config_id.decode())
+        exit_error(714, return_code, default_config_id.decode())
 
     # If a default configuration exists, there is nothing more to do.
 
