@@ -24,8 +24,17 @@ import linecache
 import logging
 import os
 import signal
+import string
 import sys
 import time
+from urllib.parse import urlparse, urlunparse
+
+try:
+    from G2Config import G2Config
+    from G2ConfigMgr import G2ConfigMgr
+    import G2Exception
+except ImportError:
+    pass
 
 __all__ = []
 __version__ = "1.0.0"
@@ -41,24 +50,30 @@ KILOBYTES = 1024
 MEGABYTES = 1024 * KILOBYTES
 GIGABYTES = 1024 * MEGABYTES
 
+# Lists from https://www.ietf.org/rfc/rfc1738.txt
+
+safe_character_list = ['$', '-', '_', '.', '+', '!', '*', '(', ')', ',', '"' ] + list(string.ascii_letters)
+unsafe_character_list = [ '"', '<', '>', '#', '%', '{', '}', '|', '\\', '^', '~', '[', ']', '`']
+reserved_character_list = [ ';', ',', '/', '?', ':', '@', '=', '&']
+
 # The "configuration_locator" describes where configuration variables are in:
 # 1) Command line options, 2) Environment variables, 3) Configuration files, 4) Default values
 
 configuration_locator = {
+    "config_path": {
+        "default": "/opt/senzing/g2/data",
+        "env": "SENZING_CONFIG_PATH",
+        "cli": "config-path"
+    },
     "debug": {
         "default": False,
         "env": "SENZING_DEBUG",
         "cli": "debug"
     },
-    "password": {
-        "default": None,
-        "env": "SENZING_PASSWORD",
-        "cli": "password"
-    },
-    "senzing_dir": {
-        "default": "/opt/senzing",
-        "env": "SENZING_DIR",
-        "cli": "senzing-dir"
+    "g2_database_url_generic": {
+        "default": "sqlite3://na:na@/opt/senzing/g2/sqldb/G2C.db",
+        "env": "SENZING_DATABASE_URL",
+        "cli": "database-url"
     },
     "sleep_time_in_seconds": {
         "default": 0,
@@ -68,13 +83,19 @@ configuration_locator = {
     "subcommand": {
         "default": None,
         "env": "SENZING_SUBCOMMAND",
+    },
+    "support_path": {
+        "default": "/opt/senzing/g2/data",
+        "env": "SENZING_SUPPORT_PATH",
+        "cli": "support-path"
     }
 }
 
 # Enumerate keys in 'configuration_locator' that should not be printed to the log.
 
 keys_to_redact = [
-    "password",
+    "g2_database_url_generic",
+    "g2_database_url_specific"
     ]
 
 # -----------------------------------------------------------------------------
@@ -85,18 +106,14 @@ keys_to_redact = [
 def get_parser():
     ''' Parse commandline arguments. '''
 
-    parser = argparse.ArgumentParser(prog="python-template.py", description="Example python skeleton. For more information, see https://github.com/Senzing/python-template")
+    parser = argparse.ArgumentParser(prog="g2-configuration-initializer.py", description="Initialized Senzing's G2 Database with JSON")
     subparsers = parser.add_subparsers(dest='subcommand', help='Subcommands (SENZING_SUBCOMMAND):')
 
-    subparser_1 = subparsers.add_parser('task1', help='Example task #1.')
+    subparser_1 = subparsers.add_parser('initialize', help='Example task #1.')
+    subparser_1.add_argument("--config-path", dest="config_path", metavar="SENZING_CONFIG_PATH", help="Location of Senzing's configuration template. Default: /opt/senzing/g2/data")
+    subparser_1.add_argument("--database-url", dest="g2_database_url_generic", metavar="SENZING_DATABASE_URL", help="Information for connecting to database.")
     subparser_1.add_argument("--debug", dest="debug", action="store_true", help="Enable debugging. (SENZING_DEBUG) Default: False")
-    subparser_1.add_argument("--password", dest="password", metavar="SENZING_PASSWORD", help="Example of information redacted in the log. Default: None")
-    subparser_1.add_argument("--senzing-dir", dest="senzing_dir", metavar="SENZING_DIR", help="Location of Senzing. Default: /opt/senzing")
-
-    subparser_2 = subparsers.add_parser('task2', help='Example task #2.')
-    subparser_2.add_argument("--debug", dest="debug", action="store_true", help="Enable debugging. (SENZING_DEBUG) Default: False")
-    subparser_2.add_argument("--password", dest="password", metavar="SENZING_PASSWORD", help="Example of information redacted in the log. Default: None")
-    subparser_2.add_argument("--senzing-dir", dest="senzing_dir", metavar="SENZING_DIR", help="Location of Senzing. Default: /opt/senzing")
+    subparser_1.add_argument("--support-path", dest="support_path", metavar="SENZING_SUPPORT_PATH", help="Location of Senzing's support. Default: /opt/senzing/g2/data")
 
     subparser_8 = subparsers.add_parser('sleep', help='Do nothing but sleep. For Docker testing.')
     subparser_8.add_argument("--sleep-time-in-seconds", dest="sleep_time_in_seconds", metavar="SENZING_SLEEP_TIME_IN_SECONDS", help="Sleep time in seconds. DEFAULT: 0 (infinite)")
@@ -123,6 +140,8 @@ message_dictionary = {
     "102": "Exit {0}",
     "103": "Sleeping {0} seconds.",
     "104": "Sleeping infinitely.",
+    "110": "Default configuration already exists. SYS_CFG.CONFIG_DATA_ID = {0}. No modification needed.",
+    "111": "New configuration created. SYS_CFG.CONFIG_DATA_ID = {0}",
     "197": "Version: {0}  Updated: {1}",
     "198": "For information on warnings and errors, see https://github.com/Senzing/stream-loader#errors",
     "199": "{0}",
@@ -186,6 +205,26 @@ def get_exception():
 # -----------------------------------------------------------------------------
 
 
+def get_g2_database_url_specific(generic_database_url):
+    result = ""
+
+    parsed_database_url = parse_database_url(generic_database_url)
+    scheme = parsed_database_url.get('scheme')
+
+    if scheme in ['mysql']:
+        result = "{scheme}://{username}:{password}@{hostname}:{port}/?schema={schema}".format(**parsed_database_url)
+    elif scheme in ['postgresql']:
+        result = "{scheme}://{username}:{password}@{hostname}:{port}:{schema}/".format(**parsed_database_url)
+    elif scheme in ['db2']:
+        result = "{scheme}://{username}:{password}@{schema}".format(**parsed_database_url)
+    elif scheme in ['sqlite3']:
+        result = "{scheme}://{netloc}{path}".format(**parsed_database_url)
+    else:
+        logging.error(message_error(518, scheme, generic_database_url))
+
+    return result
+
+
 def get_configuration(args):
     ''' Order of precedence: CLI, OS environment variables, INI file, default. '''
     result = {}
@@ -244,6 +283,10 @@ def get_configuration(args):
         integer_string = result.get(integer)
         result[integer] = int(integer_string)
 
+    # Special case:  Tailored database URL
+
+    result['g2_database_url_specific'] = get_g2_database_url_specific(result.get("g2_database_url_generic"))
+
     return result
 
 
@@ -257,9 +300,9 @@ def validate_configuration(config):
 
     subcommand = config.get('subcommand')
 
-    if subcommand in ['task1', 'task2']:
+    if subcommand in ['initialize']:
 
-        if not config.get('senzing_dir'):
+        if not config.get('g2_database_url_generic'):
             user_error_messages.append(message_error(414))
 
     # Log warning messages.
@@ -341,6 +384,147 @@ def exit_silently():
     sys.exit(1)
 
 # -----------------------------------------------------------------------------
+# Database URL parsing
+# -----------------------------------------------------------------------------
+
+
+def translate(map, astring):
+    new_string = str(astring)
+    for key, value in map.items():
+        new_string = new_string.replace(key, value)
+    return new_string
+
+
+def get_unsafe_characters(astring):
+    result = []
+    for unsafe_character in unsafe_character_list:
+        if unsafe_character in astring:
+            result.append(unsafe_character)
+    return result
+
+
+def get_safe_characters(astring):
+    result = []
+    for safe_character in safe_character_list:
+        if safe_character not in astring:
+            result.append(safe_character)
+    return result
+
+
+def parse_database_url(original_senzing_database_url):
+
+    result = {}
+
+    # Get the value of SENZING_DATABASE_URL environment variable.
+
+    senzing_database_url = original_senzing_database_url
+
+    # Create lists of safe and unsafe characters.
+
+    unsafe_characters = get_unsafe_characters(senzing_database_url)
+    safe_characters = get_safe_characters(senzing_database_url)
+
+    # Detect an error condition where there are not enough safe characters.
+
+    if len(unsafe_characters) > len(safe_characters):
+        logging.error(message_error(519, unsafe_characters, safe_characters))
+        return result
+
+    # Perform translation.
+    # This makes a map of safe character mapping to unsafe characters.
+    # "senzing_database_url" is modified to have only safe characters.
+
+    translation_map = {}
+    safe_characters_index = 0
+    for unsafe_character in unsafe_characters:
+        safe_character = safe_characters[safe_characters_index]
+        safe_characters_index += 1
+        translation_map[safe_character] = unsafe_character
+        senzing_database_url = senzing_database_url.replace(unsafe_character, safe_character)
+
+    # Parse "translated" URL.
+
+    parsed = urlparse(senzing_database_url)
+    schema = parsed.path.strip('/')
+
+    # Construct result.
+
+    result = {
+        'scheme': translate(translation_map, parsed.scheme),
+        'netloc': translate(translation_map, parsed.netloc),
+        'path': translate(translation_map, parsed.path),
+        'params': translate(translation_map, parsed.params),
+        'query': translate(translation_map, parsed.query),
+        'fragment': translate(translation_map, parsed.fragment),
+        'username': translate(translation_map, parsed.username),
+        'password': translate(translation_map, parsed.password),
+        'hostname': translate(translation_map, parsed.hostname),
+        'port': translate(translation_map, parsed.port),
+        'schema': translate(translation_map, schema),
+    }
+
+    # For safety, compare original URL with reconstructed URL.
+
+    url_parts = [
+        result.get('scheme'),
+        result.get('netloc'),
+        result.get('path'),
+        result.get('params'),
+        result.get('query'),
+        result.get('fragment'),
+    ]
+    test_senzing_database_url = urlunparse(url_parts)
+    if test_senzing_database_url != original_senzing_database_url:
+        logging.warning(message_warning(423, original_senzing_database_url, test_senzing_database_url))
+
+    # Return result.
+
+    return result
+
+# -----------------------------------------------------------------------------
+#
+# -----------------------------------------------------------------------------
+
+
+def get_g2_configuration_dictionary(config):
+    result = {
+        "PIPELINE": {
+            "SUPPORTPATH": config.get("support_path"),
+            "CONFIGPATH": config.get("config_path")
+        },
+        "SQL": {
+            "CONNECTION": config.get("g2_database_url_specific"),
+        }
+    }
+    return result
+
+
+def get_g2_configuration_json(config):
+    return json.dumps(get_g2_configuration_dictionary(config))
+
+
+def get_g2_config(config, g2_config_name="configuration-initializer-G2-config"):
+    '''Get the G2Config resource.'''
+    try:
+        g2_configuration_json = get_g2_configuration_json(config)
+        result = G2Config()
+        result.initV2(g2_config_name, g2_configuration_json, config.get('debug', False))
+    except G2Exception.G2ModuleException as err:
+        exit_error(505, g2_configuration_json, err)
+    return result
+
+
+def get_g2_configuration_manager(config, g2_configuration_manager_name="configuration-initializer-G2-configuration-manager"):
+    '''Get the G2Config resource.'''
+    try:
+        g2_configuration_json = get_g2_configuration_json(config)
+        result = G2ConfigMgr()
+        result.initV2(g2_configuration_manager_name, g2_configuration_json, config.get('debug', False))
+    except G2Exception.G2ModuleException as err:
+        exit_error(516, g2_configuration_json, err)
+    return result
+
+# -----------------------------------------------------------------------------
 # do_* functions
 #   Common function signature: do_XXX(args)
 # -----------------------------------------------------------------------------
@@ -362,7 +546,7 @@ def do_docker_acceptance_test(args):
     logging.info(exit_template(config))
 
 
-def do_task1(args):
+def do_initialize(args):
     ''' Do a task. '''
 
     # Get context from CLI, environment variables, and ini files.
@@ -373,30 +557,45 @@ def do_task1(args):
 
     logging.info(entry_template(config))
 
-    # Do work.
+    # Determine of a default/initial G2 configuration already exists.
 
-    print("senzing-dir: {senzing_dir}; debug: {debug}".format(**config))
+    default_config_id = bytearray()
+    g2_configuration_manager = get_g2_configuration_manager(config)
+    try:
+        return_code = g2_configuration_manager.getDefaultConfigID(default_config_id)
+    except G2Exception.TranslateG2ModuleException as err:
+        logging.error(message_error(710, err, default_config_id.decode()))
+    except G2Exception.G2ModuleNotInitialized as err:
+        logging.error(message_error(711, err, default_config_id.decode()))
+    except Exception as err:
+        logging.error(message_error(712, err, default_config_id.decode()))
+    except:
+        logging.error(message_error(713, default_config_id.decode()))
+    if return_code != 0:
+        exit_error(714, default_config_id.decode())
 
-    # Epilog.
+    # If a default configuration exists, there is nothing more to do.
 
-    logging.info(exit_template(config))
+    if default_config_id:
+        logging.info(message_info(110, default_config_id.decode()))
+        logging.info(exit_template(config))
+        return
 
+    # If there is no default configuration, create one in the 'configuration_bytearray' variable.
 
-def do_task2(args):
-    ''' Do a task. Print the complete config object'''
+    g2_config = get_g2_config(config)
+    config_handle = g2_config.create()
+    configuration_bytearray = bytearray()
+    g2_config.save(config_handle, configuration_bytearray)
+    g2_config.close(config_handle)
 
-    # Get context from CLI, environment variables, and ini files.
+    # Save configuration JSON into G2 database.
 
-    config = get_configuration(args)
-
-    # Prolog.
-
-    logging.info(entry_template(config))
-
-    # Do work.
-
-    config_json = json.dumps(config, sort_keys=True, indent=4)
-    print(config_json)
+    config_comment = "Initial configuration."
+    new_config_id = bytearray()
+    return_code = g2_configuration_manager.addConfig(configuration_bytearray.decode(), config_comment, new_config_id)
+    g2_configuration_manager.setDefaultConfigID(new_config_id)
+    logging.info(message_info(111, new_config_id.decode()))
 
     # Epilog.
 
