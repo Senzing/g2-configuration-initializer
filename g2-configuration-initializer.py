@@ -26,7 +26,7 @@ except ImportError:
 __all__ = []
 __version__ = "1.0.0"
 __date__ = '2019-07-16'
-__updated__ = '2019-07-16'
+__updated__ = '2019-07-17'
 
 SENZING_PRODUCT_ID = "5005"  # See https://github.com/Senzing/knowledge-base/blob/master/lists/senzing-product-ids.md
 log_format = '%(asctime)s %(message)s'
@@ -137,11 +137,11 @@ message_dictionary = {
     "598": "Bad SENZING_SUBCOMMAND: {0}.",
     "599": "No processing done.",
     "700": "senzing-" + SENZING_PRODUCT_ID + "{0:04d}E",
-    "710": "g2_configuration_manager.getDefaultConfigID({1}) TranslateG2ModuleException: {0}",
-    "711": "g2_configuration_manager.getDefaultConfigID({1}) G2ModuleNotInitialized: {0}",
-    "712": "g2_configuration_manager.getDefaultConfigID({1}) Exception: {0}",
-    "713": "g2_configuration_manager.getDefaultConfigID({0}) exception",
-    "714": "g2_configuration_manager.getDefaultConfigID({1}) Bad return code: {0}",
+    "710": "{1}({2}) TranslateG2ModuleException: {0}",
+    "711": "{1}({2}) G2ModuleNotInitialized: {0}",
+    "712": "{1}({2}) Exception: {0}",
+    "713": "{0}({1}) exception",
+    "714": "{1}({2}) Bad return code: {0}",
     "799": "Program terminated with error.",
     "900": "senzing-" + SENZING_PRODUCT_ID + "{0:04d}D",
     "999": "{0}",
@@ -328,19 +328,27 @@ def bootstrap_signal_handler(signal, frame):
 
 def entry_template(config):
     ''' Format of entry message. '''
+    debug = config.get("debug", False)
     config['start_time'] = time.time()
-    redacted_configuration = redact_configuration(config)
-    config_json = json.dumps(redacted_configuration, sort_keys=True)
+    if debug:
+        final_config = config
+    else:
+        final_config = redact_configuration(config)
+    config_json = json.dumps(final_config, sort_keys=True)
     return message_info(101, config_json)
 
 
 def exit_template(config):
     ''' Format of exit message. '''
+    debug = config.get("debug", False)
     stop_time = time.time()
     config['stop_time'] = stop_time
     config['elapsed_time'] = stop_time - config.get('start_time', stop_time)
-    redacted_configuration = redact_configuration(config)
-    config_json = json.dumps(redacted_configuration, sort_keys=True)
+    if debug:
+        final_config = config
+    else:
+        final_config = redact_configuration(config)
+    config_json = json.dumps(final_config, sort_keys=True)
     return message_info(102, config_json)
 
 
@@ -474,7 +482,7 @@ def get_g2_database_url_specific(generic_database_url):
     return result
 
 # -----------------------------------------------------------------------------
-#
+# Get Senzing resources.
 # -----------------------------------------------------------------------------
 
 
@@ -553,18 +561,20 @@ def do_initialize(args):
 
     default_config_id = bytearray()
     g2_configuration_manager = get_g2_configuration_manager(config)
+    method = "g2_configuration_manager.getDefaultConfigID"
+    parameters = default_config_id.decode()
     try:
         return_code = g2_configuration_manager.getDefaultConfigID(default_config_id)
     except G2Exception.TranslateG2ModuleException as err:
-        logging.error(message_error(710, err, default_config_id.decode()))
+        logging.error(message_error(710, err, method, parameters))
     except G2Exception.G2ModuleNotInitialized as err:
-        logging.error(message_error(711, err, default_config_id.decode()))
+        logging.error(message_error(711, err, method, parameters))
     except Exception as err:
-        logging.error(message_error(712, err, default_config_id.decode()))
+        logging.error(message_error(712, err, method, parameters))
     except:
-        logging.error(message_error(713, default_config_id.decode()))
+        logging.error(message_error(713, method, parameters))
     if return_code != 0:
-        exit_error(714, return_code, default_config_id.decode())
+        exit_error(714, return_code, method, parameters)
 
     # If a default configuration exists, there is nothing more to do.
 
@@ -578,19 +588,62 @@ def do_initialize(args):
     g2_config = get_g2_config(config)
     config_handle = g2_config.create()
     configuration_bytearray = bytearray()
-    g2_config.save(config_handle, configuration_bytearray)
+    method = "g2_config.save"
+    parameters = "{0}, {1}".format(config_handle, configuration_bytearray.decode())
+    try:
+        return_code = g2_config.save(config_handle, configuration_bytearray)
+    except G2Exception.TranslateG2ModuleException as err:
+        logging.error(message_error(710, err, method, parameters))
+    except G2Exception.G2ModuleNotInitialized as err:
+        logging.error(message_error(711, err, method, parameters))
+    except Exception as err:
+        logging.error(message_error(712, err, method, parameters))
+    except:
+        logging.error(message_error(713, method, parameters))
+    if return_code != 0:
+        exit_error(714, return_code, method, parameters)
+
     g2_config.close(config_handle)
 
     # Save configuration JSON into G2 database.
 
     config_comment = "Initial configuration."
     new_config_id = bytearray()
-    return_code = g2_configuration_manager.addConfig(configuration_bytearray.decode(), config_comment, new_config_id)
-    g2_configuration_manager.setDefaultConfigID(new_config_id)
-    logging.info(message_info(111, new_config_id.decode()))
+    method = "g2_configuration_manager.addConfig"
+    parameters = "{0}, {1}, {2}".format(configuration_bytearray.decode(), config_comment, new_config_id)
+    try:
+        return_code = g2_configuration_manager.addConfig(configuration_bytearray.decode(), config_comment, new_config_id)
+    except G2Exception.TranslateG2ModuleException as err:
+        logging.error(message_error(710, err, method, parameters))
+    except G2Exception.G2ModuleNotInitialized as err:
+        logging.error(message_error(711, err, method, parameters))
+    except Exception as err:
+        logging.error(message_error(712, err, method, parameters))
+    except:
+        logging.error(message_error(713, method, parameters))
+    if return_code != 0:
+        exit_error(714, return_code, method, parameters)
+
+    # Set the default configuration ID.
+
+    method = "g2_configuration_manager.setDefaultConfigID"
+    parameters = "{0}".format(new_config_id)
+    try:
+        return_code = g2_configuration_manager.setDefaultConfigID(new_config_id)
+    except G2Exception.TranslateG2ModuleException as err:
+        logging.error(message_error(710, err, method, parameters))
+    except G2Exception.G2ModuleNotInitialized as err:
+        logging.error(message_error(711, err, method, parameters))
+    except Exception as err:
+        logging.error(message_error(712, err, method, parameters))
+    except:
+        logging.error(message_error(713, method, parameters))
+    if return_code != 0:
+        exit_error(714, return_code, method, parameters)
 
     # Epilog.
 
+    logging.info(message_info(111, new_config_id.decode()))
     logging.info(exit_template(config))
 
 
