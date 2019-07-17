@@ -92,9 +92,9 @@ This repository assumes a working knowledge of:
 
 ### Configuration
 
-* **SENZING_DATA_SOURCE** -
-  Default "DATA_SOURCE" value for incoming records.
-  No default.
+* **SENZING_CONFIG_PATH** -
+  Location of Senzing configuration.
+  Default: /opt/senzing/g2/data
 * **SENZING_DATABASE_URL** -
   Database URI in the form: `${DATABASE_PROTOCOL}://${DATABASE_USERNAME}:${DATABASE_PASSWORD}@${DATABASE_HOST}:${DATABASE_PORT}/${DATABASE_DATABASE}`
   Default:  [internal SQLite database]
@@ -108,9 +108,6 @@ This repository assumes a working knowledge of:
   See [Create SENZING_DIR](#create-senzing_dir).
   No default.
   Usually set to "/opt/senzing".
-* **SENZING_ENTITY_TYPE** -
-  Default "ENTITY_TYPE" value for incoming records.
-  No default.
 * **SENZING_ENTRYPOINT_SLEEP** -
   Sleep, in seconds, before executing.
   0 for sleeping infinitely.
@@ -123,6 +120,9 @@ This repository assumes a working knowledge of:
   Default: info
 * **SENZING_SUBCOMMAND** -
   Identify the subcommand to be run. See `stream-loader.py --help` for complete list.
+* **SENZING_SUPPORT_PATH** -
+  Location of Senzing support.
+  Default: /opt/senzing/g2/data
 
 1. To determine which configuration parameters are use for each `<subcommand>`, run:
 
@@ -168,9 +168,8 @@ Run the docker container accessing an external PostgreSQL database and volumes.
     export DATABASE_HOST=senzing-postgresql
     export DATABASE_PORT=5432
     export DATABASE_DATABASE=G2
-
     export SENZING_DIR=/opt/senzing
-    export SENZING_SUBCOMMAND=kafka
+    export SENZING_SUBCOMMAND=initialize
     ```
 
 1. Run docker container.  Example:
@@ -180,6 +179,7 @@ Run the docker container accessing an external PostgreSQL database and volumes.
 
     sudo docker run \
       --env SENZING_SUBCOMMAND="${SENZING_SUBCOMMAND}" \
+      --env SENZING_DATABASE_URL="${SENZING_DATABASE_URL}" \
       --interactive \
       --rm \
       --tty \
@@ -209,8 +209,8 @@ Run the docker container accessing an external MySQL database in a docker networ
     export DATABASE_HOST=senzing-mysql
     export DATABASE_PORT=3306
     export DATABASE_DATABASE=G2
-
     export SENZING_DIR=/opt/senzing
+    export SENZING_SUBCOMMAND=initialize
     ```
 
 1. Run docker container.  Example:
@@ -219,6 +219,7 @@ Run the docker container accessing an external MySQL database in a docker networ
     export SENZING_DATABASE_URL="${DATABASE_PROTOCOL}://${DATABASE_USERNAME}:${DATABASE_PASSWORD}@${DATABASE_HOST}:${DATABASE_PORT}/${DATABASE_DATABASE}"
 
     sudo docker run \
+      --env SENZING_SUBCOMMAND="${SENZING_SUBCOMMAND}" \
       --env SENZING_DATABASE_URL="${SENZING_DATABASE_URL}" \
       --interactive \
       --net ${SENZING_NETWORK} \
