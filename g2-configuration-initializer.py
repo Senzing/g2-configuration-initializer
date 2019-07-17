@@ -559,6 +559,7 @@ def do_docker_acceptance_test(args):
     # Get context from CLI, environment variables, and ini files.
 
     config = get_configuration(args)
+    validate_configuration(config)
 
     # Prolog.
 
@@ -575,6 +576,7 @@ def do_initialize(args):
     # Get context from CLI, environment variables, and ini files.
 
     config = get_configuration(args)
+    validate_configuration(config)
 
     # Prolog.
 
@@ -676,6 +678,7 @@ def do_list_configurations(args):
     # Get context from CLI, environment variables, and ini files.
 
     config = get_configuration(args)
+    validate_configuration(config)
 
     # Prolog.
 
@@ -712,6 +715,7 @@ def do_list_datasources(args):
     # Get context from CLI, environment variables, and ini files.
 
     config = get_configuration(args)
+    validate_configuration(config)
 
     # Prolog.
 
@@ -749,6 +753,7 @@ def do_sleep(args):
     # Get context from CLI, environment variables, and ini files.
 
     config = get_configuration(args)
+    validate_configuration(config)
 
     # Prolog.
 
