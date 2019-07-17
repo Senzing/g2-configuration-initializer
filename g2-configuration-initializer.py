@@ -96,11 +96,23 @@ def get_parser():
     parser = argparse.ArgumentParser(prog="g2-configuration-initializer.py", description="Initialized Senzing's G2 Database with JSON")
     subparsers = parser.add_subparsers(dest='subcommand', help='Subcommands (SENZING_SUBCOMMAND):')
 
-    subparser_1 = subparsers.add_parser('initialize', help='Example task #1.')
+    subparser_1 = subparsers.add_parser('initialize', help='Create initial configuration in G2 database.')
     subparser_1.add_argument("--config-path", dest="config_path", metavar="SENZING_CONFIG_PATH", help="Location of Senzing's configuration template. Default: /opt/senzing/g2/data")
     subparser_1.add_argument("--database-url", dest="g2_database_url_generic", metavar="SENZING_DATABASE_URL", help="Information for connecting to database.")
     subparser_1.add_argument("--debug", dest="debug", action="store_true", help="Enable debugging. (SENZING_DEBUG) Default: False")
     subparser_1.add_argument("--support-path", dest="support_path", metavar="SENZING_SUPPORT_PATH", help="Location of Senzing's support. Default: /opt/senzing/g2/data")
+
+    subparser_2 = subparsers.add_parser('list-configurations', help='List configurations.')
+    subparser_2.add_argument("--config-path", dest="config_path", metavar="SENZING_CONFIG_PATH", help="Location of Senzing's configuration template. Default: /opt/senzing/g2/data")
+    subparser_2.add_argument("--database-url", dest="g2_database_url_generic", metavar="SENZING_DATABASE_URL", help="Information for connecting to database.")
+    subparser_2.add_argument("--debug", dest="debug", action="store_true", help="Enable debugging. (SENZING_DEBUG) Default: False")
+    subparser_2.add_argument("--support-path", dest="support_path", metavar="SENZING_SUPPORT_PATH", help="Location of Senzing's support. Default: /opt/senzing/g2/data")
+
+    subparser_2 = subparsers.add_parser('list-datasources', help='List datasources.')
+    subparser_2.add_argument("--config-path", dest="config_path", metavar="SENZING_CONFIG_PATH", help="Location of Senzing's configuration template. Default: /opt/senzing/g2/data")
+    subparser_2.add_argument("--database-url", dest="g2_database_url_generic", metavar="SENZING_DATABASE_URL", help="Information for connecting to database.")
+    subparser_2.add_argument("--debug", dest="debug", action="store_true", help="Enable debugging. (SENZING_DEBUG) Default: False")
+    subparser_2.add_argument("--support-path", dest="support_path", metavar="SENZING_SUPPORT_PATH", help="Location of Senzing's support. Default: /opt/senzing/g2/data")
 
     subparser_8 = subparsers.add_parser('sleep', help='Do nothing but sleep. For Docker testing.')
     subparser_8.add_argument("--sleep-time-in-seconds", dest="sleep_time_in_seconds", metavar="SENZING_SLEEP_TIME_IN_SECONDS", help="Sleep time in seconds. DEFAULT: 0 (infinite)")
@@ -129,19 +141,30 @@ message_dictionary = {
     "104": "Sleeping infinitely.",
     "110": "Default configuration already exists. SYS_CFG.CONFIG_DATA_ID = {0}. No modification needed.",
     "111": "New configuration created. SYS_CFG.CONFIG_DATA_ID = {0}",
+    "112": "Configurations: {0}",
+    "113": "Datasources: {0}",
     "197": "Version: {0}  Updated: {1}",
     "198": "For information on warnings and errors, see https://github.com/Senzing/stream-loader#errors",
     "199": "{0}",
     "300": "senzing-" + SENZING_PRODUCT_ID + "{0:04d}W",
     "500": "senzing-" + SENZING_PRODUCT_ID + "{0:04d}E",
+    "501": "Unknown database scheme '{0}' in database url '{1}'",
     "598": "Bad SENZING_SUBCOMMAND: {0}.",
     "599": "No processing done.",
     "700": "senzing-" + SENZING_PRODUCT_ID + "{0:04d}E",
-    "710": "{1}({2}) TranslateG2ModuleException: {0}",
-    "711": "{1}({2}) G2ModuleNotInitialized: {0}",
-    "712": "{1}({2}) Exception: {0}",
-    "713": "{0}({1}) exception",
-    "714": "{1}({2}) Bad return code: {0}",
+    "701": "Could not initialize G2Engine with '{0}'. Error: {1}",
+    "702": "Could not initialize G2Config with '{0}'. Error: {1}",
+    "703": "Could not initialize G2ConfigMgr with '{0}'. Error: {1}",
+    "704": "Could not initialize G2Audit with '{0}'. Error: {1}",
+    "705": "Could not initialize G2Diagnostic with '{0}'. Error: {1}",
+    "706": "Could not initialize G2Hasher with '{0}'. Error: {1}",
+    "707": "Could not initialize G2Product with '{0}'. Error: {1}",
+    "720": "Original and new database URLs do not match. Original URL: {0}; Reconstructed URL: {1}",
+    "750": "{1}({2}) TranslateG2ModuleException: {0}",
+    "751": "{1}({2}) G2ModuleNotInitialized: {0}",
+    "752": "{1}({2}) Exception: {0}",
+    "753": "{0}({1}) exception",
+    "754": "{1}({2}) Bad return code: {0}",
     "799": "Program terminated with error.",
     "900": "senzing-" + SENZING_PRODUCT_ID + "{0:04d}D",
     "999": "{0}",
@@ -407,7 +430,7 @@ def parse_database_url(original_senzing_database_url):
     # Detect an error condition where there are not enough safe characters.
 
     if len(unsafe_characters) > len(safe_characters):
-        logging.error(message_error(519, unsafe_characters, safe_characters))
+        logging.error(message_error(703, unsafe_characters, safe_characters))
         return result
 
     # Perform translation.
@@ -455,7 +478,7 @@ def parse_database_url(original_senzing_database_url):
     ]
     test_senzing_database_url = urlunparse(url_parts)
     if test_senzing_database_url != original_senzing_database_url:
-        logging.warning(message_warning(423, original_senzing_database_url, test_senzing_database_url))
+        logging.warning(message_warning(720, original_senzing_database_url, test_senzing_database_url))
 
     # Return result.
 
@@ -477,7 +500,7 @@ def get_g2_database_url_specific(generic_database_url):
     elif scheme in ['sqlite3']:
         result = "{scheme}://{netloc}{path}".format(**parsed_database_url)
     else:
-        logging.error(message_error(518, scheme, generic_database_url))
+        logging.error(message_error(501, scheme, generic_database_url))
 
     return result
 
@@ -510,7 +533,7 @@ def get_g2_config(config, g2_config_name="configuration-initializer-G2-config"):
         result = G2Config()
         result.initV2(g2_config_name, g2_configuration_json, config.get('debug', False))
     except G2Exception.G2ModuleException as err:
-        exit_error(505, g2_configuration_json, err)
+        exit_error(702, g2_configuration_json, err)
     return result
 
 
@@ -521,7 +544,7 @@ def get_g2_configuration_manager(config, g2_configuration_manager_name="configur
         result = G2ConfigMgr()
         result.initV2(g2_configuration_manager_name, g2_configuration_json, config.get('debug', False))
     except G2Exception.G2ModuleException as err:
-        exit_error(516, g2_configuration_json, err)
+        exit_error(703, g2_configuration_json, err)
     return result
 
 # -----------------------------------------------------------------------------
@@ -566,15 +589,15 @@ def do_initialize(args):
     try:
         return_code = g2_configuration_manager.getDefaultConfigID(default_config_id)
     except G2Exception.TranslateG2ModuleException as err:
-        logging.error(message_error(710, err, method, parameters))
+        logging.error(message_error(750, err, method, parameters))
     except G2Exception.G2ModuleNotInitialized as err:
-        logging.error(message_error(711, err, method, parameters))
+        logging.error(message_error(751, err, method, parameters))
     except Exception as err:
-        logging.error(message_error(712, err, method, parameters))
+        logging.error(message_error(752, err, method, parameters))
     except:
-        logging.error(message_error(713, method, parameters))
+        logging.error(message_error(753, method, parameters))
     if return_code != 0:
-        exit_error(714, return_code, method, parameters)
+        exit_error(754, return_code, method, parameters)
 
     # If a default configuration exists, there is nothing more to do.
 
@@ -593,15 +616,15 @@ def do_initialize(args):
     try:
         return_code = g2_config.save(config_handle, configuration_bytearray)
     except G2Exception.TranslateG2ModuleException as err:
-        logging.error(message_error(710, err, method, parameters))
+        logging.error(message_error(750, err, method, parameters))
     except G2Exception.G2ModuleNotInitialized as err:
-        logging.error(message_error(711, err, method, parameters))
+        logging.error(message_error(751, err, method, parameters))
     except Exception as err:
-        logging.error(message_error(712, err, method, parameters))
+        logging.error(message_error(752, err, method, parameters))
     except:
-        logging.error(message_error(713, method, parameters))
+        logging.error(message_error(753, method, parameters))
     if return_code != 0:
-        exit_error(714, return_code, method, parameters)
+        exit_error(754, return_code, method, parameters)
 
     g2_config.close(config_handle)
 
@@ -614,15 +637,15 @@ def do_initialize(args):
     try:
         return_code = g2_configuration_manager.addConfig(configuration_bytearray.decode(), config_comment, new_config_id)
     except G2Exception.TranslateG2ModuleException as err:
-        logging.error(message_error(710, err, method, parameters))
+        logging.error(message_error(750, err, method, parameters))
     except G2Exception.G2ModuleNotInitialized as err:
-        logging.error(message_error(711, err, method, parameters))
+        logging.error(message_error(751, err, method, parameters))
     except Exception as err:
-        logging.error(message_error(712, err, method, parameters))
+        logging.error(message_error(752, err, method, parameters))
     except:
-        logging.error(message_error(713, method, parameters))
+        logging.error(message_error(753, method, parameters))
     if return_code != 0:
-        exit_error(714, return_code, method, parameters)
+        exit_error(754, return_code, method, parameters)
 
     # Set the default configuration ID.
 
@@ -631,19 +654,92 @@ def do_initialize(args):
     try:
         return_code = g2_configuration_manager.setDefaultConfigID(new_config_id)
     except G2Exception.TranslateG2ModuleException as err:
-        logging.error(message_error(710, err, method, parameters))
+        logging.error(message_error(750, err, method, parameters))
     except G2Exception.G2ModuleNotInitialized as err:
-        logging.error(message_error(711, err, method, parameters))
+        logging.error(message_error(751, err, method, parameters))
     except Exception as err:
-        logging.error(message_error(712, err, method, parameters))
+        logging.error(message_error(752, err, method, parameters))
     except:
-        logging.error(message_error(713, method, parameters))
+        logging.error(message_error(753, method, parameters))
     if return_code != 0:
-        exit_error(714, return_code, method, parameters)
+        exit_error(754, return_code, method, parameters)
 
     # Epilog.
 
     logging.info(message_info(111, new_config_id.decode()))
+    logging.info(exit_template(config))
+
+
+def do_list_configurations(args):
+    ''' List datasources in G2 database. '''
+
+    # Get context from CLI, environment variables, and ini files.
+
+    config = get_configuration(args)
+
+    # Prolog.
+
+    logging.info(entry_template(config))
+
+    # Get list of configurations.
+
+    list_bytearray = bytearray()
+    g2_configuration_manager = get_g2_configuration_manager(config)
+    method = "g2_configuration_manager.getConfigList"
+    parameters = list_bytearray.decode()
+    try:
+        return_code = g2_configuration_manager.getConfigList(list_bytearray)
+    except G2Exception.TranslateG2ModuleException as err:
+        logging.error(message_error(750, err, method, parameters))
+    except G2Exception.G2ModuleNotInitialized as err:
+        logging.error(message_error(751, err, method, parameters))
+    except Exception as err:
+        logging.error(message_error(752, err, method, parameters))
+    except:
+        logging.error(message_error(753, method, parameters))
+    if return_code != 0:
+        exit_error(754, return_code, method, parameters)
+
+    # Epilog.
+
+    logging.info(message_info(112, list_bytearray.decode()))
+    logging.info(exit_template(config))
+
+
+def do_list_datasources(args):
+    ''' List configurations in G2 database. '''
+
+    # Get context from CLI, environment variables, and ini files.
+
+    config = get_configuration(args)
+
+    # Prolog.
+
+    logging.info(entry_template(config))
+
+    # Get list of configurations.
+
+    g2_config = get_g2_config(config)
+    config_handle = g2_config.create()
+    datasources_bytearray = bytearray()
+    method = "g2_config.listDataSources"
+    parameters = "{0}, {1}".format(config_handle, datasources_bytearray.decode())
+    try:
+        return_code = g2_config.listDataSources(config_handle, datasources_bytearray)
+    except G2Exception.TranslateG2ModuleException as err:
+        logging.error(message_error(750, err, method, parameters))
+    except G2Exception.G2ModuleNotInitialized as err:
+        logging.error(message_error(751, err, method, parameters))
+    except Exception as err:
+        logging.error(message_error(752, err, method, parameters))
+    except:
+        logging.error(message_error(753, method, parameters))
+    if return_code != 0:
+        exit_error(754, return_code, method, parameters)
+
+    # Epilog.
+
+    logging.info(message_info(113, datasources_bytearray.decode()))
     logging.info(exit_template(config))
 
 
