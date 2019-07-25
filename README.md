@@ -108,13 +108,6 @@ This repository assumes a working knowledge of:
   See [Create SENZING_DIR](#create-senzing_dir).
   No default.
   Usually set to "/opt/senzing".
-* **SENZING_ENTRYPOINT_SLEEP** -
-  Sleep, in seconds, before executing.
-  0 for sleeping infinitely.
-  [not-set] if no sleep.
-  Useful for debugging docker containers.
-  To stop sleeping, run "`unset SENZING_ENTRYPOINT_SLEEP`".
-  Default: [not-set].
 * **SENZING_LOG_LEVEL** -
   Level of logging. {notset, debug, info, warning, error, critical}.
   Default: info
