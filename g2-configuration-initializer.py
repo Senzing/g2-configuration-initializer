@@ -26,7 +26,7 @@ except ImportError:
 __all__ = []
 __version__ = "1.0.0"
 __date__ = '2019-07-16'
-__updated__ = '2019-07-17'
+__updated__ = '2019-07-23'
 
 SENZING_PRODUCT_ID = "5005"  # See https://github.com/Senzing/knowledge-base/blob/master/lists/senzing-product-ids.md
 log_format = '%(asctime)s %(message)s'
@@ -281,6 +281,8 @@ def get_configuration(args):
     # Special case:  Tailored database URL
 
     result['g2_database_url_specific'] = get_g2_database_url_specific(result.get("g2_database_url_generic"))
+    result['g2_database_url_generic_redacted'] = get_g2_database_url_redacted(result.get("g2_database_url_generic"))
+    result['g2_database_url_specific_redacted'] = get_g2_database_url_redacted(result.get("g2_database_url_specific"))
 
     return result
 
@@ -353,10 +355,7 @@ def entry_template(config):
     ''' Format of entry message. '''
     debug = config.get("debug", False)
     config['start_time'] = time.time()
-    if debug:
-        final_config = config
-    else:
-        final_config = redact_configuration(config)
+    final_config = redact_configuration(config)
     config_json = json.dumps(final_config, sort_keys=True)
     return message_info(101, config_json)
 
@@ -367,10 +366,7 @@ def exit_template(config):
     stop_time = time.time()
     config['stop_time'] = stop_time
     config['elapsed_time'] = stop_time - config.get('start_time', stop_time)
-    if debug:
-        final_config = config
-    else:
-        final_config = redact_configuration(config)
+    final_config = redact_configuration(config)
     config_json = json.dumps(final_config, sort_keys=True)
     return message_info(102, config_json)
 
@@ -499,6 +495,25 @@ def get_g2_database_url_specific(generic_database_url):
         result = "{scheme}://{username}:{password}@{schema}".format(**parsed_database_url)
     elif scheme in ['sqlite3']:
         result = "{scheme}://{netloc}{path}".format(**parsed_database_url)
+    else:
+        logging.error(message_error(501, scheme, generic_database_url))
+
+    return result
+
+def get_g2_database_url_redacted(generic_database_url):
+    result = ""
+
+    parsed_database_url = parse_database_url(generic_database_url)
+    scheme = parsed_database_url.get('scheme')
+
+    if scheme in ['mysql']:
+        result = "{scheme}://xxxxxxxx:xxxxxxxx@{hostname}:{port}/?schema={schema}".format(**parsed_database_url)
+    elif scheme in ['postgresql']:
+        result = "{scheme}://xxxxxxxx:xxxxxxxx@{hostname}:{port}:{schema}/".format(**parsed_database_url)
+    elif scheme in ['db2']:
+        result = "{scheme}://xxxxxxxx:xxxxxxxx@{schema}".format(**parsed_database_url)
+    elif scheme in ['sqlite3']:
+        result = "{scheme}://xxxxxxxx:xxxxxxxx@{path}".format(**parsed_database_url)
     else:
         logging.error(message_error(501, scheme, generic_database_url))
 
