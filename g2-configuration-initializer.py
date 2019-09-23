@@ -26,7 +26,7 @@ except ImportError:
 __all__ = []
 __version__ = "1.0.0"
 __date__ = '2019-07-16'
-__updated__ = '2019-07-23'
+__updated__ = '2019-09-23'
 
 SENZING_PRODUCT_ID = "5005"  # See https://github.com/Senzing/knowledge-base/blob/master/lists/senzing-product-ids.md
 log_format = '%(asctime)s %(message)s'
@@ -165,7 +165,6 @@ message_dictionary = {
     "706": "Could not initialize G2Hasher with '{0}'. Error: {1}",
     "707": "Could not initialize G2Product with '{0}'. Error: {1}",
     "720": "Original and new database URLs do not match. Original URL: {0}; Reconstructed URL: {1}",
-    "750": "{1}({2}) TranslateG2ModuleException: {0}",
     "751": "{1}({2}) G2ModuleNotInitialized: {0}",
     "752": "{1}({2}) Exception: {0}",
     "753": "{0}({1}) exception",
@@ -611,8 +610,6 @@ def do_initialize(args):
     parameters = default_config_id.decode()
     try:
         return_code = g2_configuration_manager.getDefaultConfigID(default_config_id)
-    except G2Exception.TranslateG2ModuleException as err:
-        logging.error(message_error(750, err, method, parameters))
     except G2Exception.G2ModuleNotInitialized as err:
         logging.error(message_error(751, err, method, parameters))
     except Exception as err:
@@ -638,8 +635,6 @@ def do_initialize(args):
     parameters = "{0}, {1}".format(config_handle, configuration_bytearray.decode())
     try:
         return_code = g2_config.save(config_handle, configuration_bytearray)
-    except G2Exception.TranslateG2ModuleException as err:
-        logging.error(message_error(750, err, method, parameters))
     except G2Exception.G2ModuleNotInitialized as err:
         logging.error(message_error(751, err, method, parameters))
     except Exception as err:
@@ -659,8 +654,6 @@ def do_initialize(args):
     parameters = "{0}, {1}, {2}".format(configuration_bytearray.decode(), config_comment, new_config_id)
     try:
         return_code = g2_configuration_manager.addConfig(configuration_bytearray.decode(), config_comment, new_config_id)
-    except G2Exception.TranslateG2ModuleException as err:
-        logging.error(message_error(750, err, method, parameters))
     except G2Exception.G2ModuleNotInitialized as err:
         logging.error(message_error(751, err, method, parameters))
     except Exception as err:
@@ -676,8 +669,6 @@ def do_initialize(args):
     parameters = "{0}".format(new_config_id)
     try:
         return_code = g2_configuration_manager.setDefaultConfigID(new_config_id)
-    except G2Exception.TranslateG2ModuleException as err:
-        logging.error(message_error(750, err, method, parameters))
     except G2Exception.G2ModuleNotInitialized as err:
         logging.error(message_error(751, err, method, parameters))
     except Exception as err:
@@ -713,8 +704,6 @@ def do_list_configurations(args):
     parameters = list_bytearray.decode()
     try:
         return_code = g2_configuration_manager.getConfigList(list_bytearray)
-    except G2Exception.TranslateG2ModuleException as err:
-        logging.error(message_error(750, err, method, parameters))
     except G2Exception.G2ModuleNotInitialized as err:
         logging.error(message_error(751, err, method, parameters))
     except Exception as err:
@@ -751,8 +740,6 @@ def do_list_datasources(args):
     parameters = "{0}, {1}".format(config_handle, datasources_bytearray.decode())
     try:
         return_code = g2_config.listDataSources(config_handle, datasources_bytearray)
-    except G2Exception.TranslateG2ModuleException as err:
-        logging.error(message_error(750, err, method, parameters))
     except G2Exception.G2ModuleNotInitialized as err:
         logging.error(message_error(751, err, method, parameters))
     except Exception as err:
