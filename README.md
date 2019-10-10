@@ -38,6 +38,10 @@ To see the options for a subcommand, run commands like:
 ./g2-configuration-initializer.py initialize --help
 ```
 
+### Related artifacts
+
+1. [DockerHub](https://hub.docker.com/r/senzing/g2-configuration-initializer)
+
 ### Contents
 
 1. [Expectations](#expectations)
