@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=senzing/senzing-base:1.2.1
+ARG BASE_IMAGE=senzing/senzing-base:1.3.0
 FROM ${BASE_IMAGE}
 
 ENV REFRESHED_AT=2019-07-23
