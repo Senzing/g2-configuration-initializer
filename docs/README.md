@@ -1,4 +1,4 @@
-# docker-template
+# g2-configuration-initializer
 
 Placeholder for [GitHub pages](https://pages.github.com/).
 

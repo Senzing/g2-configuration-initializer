@@ -24,4 +24,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - version
   - docker-acceptance-test
 - Dockerized
-- Based off of [github.com/Senzing/python-template](https://github.com/Senzing/python-template)
+- Based off of [github.com/Senzing/template-python](https://github.com/Senzing/template-python)
